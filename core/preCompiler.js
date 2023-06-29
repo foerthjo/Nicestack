@@ -106,6 +106,22 @@ function replaceDataBindings(file) {
 	return text;
 }
 
+function replaceServercalls(file) {
+	let tokens = tokenize(file, ['@server.', '(', ')']);
+	let text = '';
+	while (tokens.length > 0) {
+		if (tokens[0] == '@server.') {
+			tokens.shift(); // @server.
+			let functionName = tokens.shift();
+			let parameters = readBrackets(tokens, '(', ')');
+			text += `callServer('${functionName}', ${parameters})`;
+		} else {
+			text += tokens.shift();
+		}
+	}
+	return text;
+}
+
 function replaceFeatureFlags(file, featureFlags) {
 	let tokens = tokenize(file, ['@feature', '{', '}']);
 	file = '';
@@ -202,6 +218,7 @@ function compile(file, featureFlags) {
 	file = replaceIfs(file);
 	file = replaceFors(file);
 	file = replaceDataBindings(file);
+	file = replaceServercalls(file);
 	let dependencies = getSections('@using', ' ', ';', file);
 	let skeleton = getSections('@skeleton', '{', '}', file);
 	let style = getSections('@style', '{', '}', file);
