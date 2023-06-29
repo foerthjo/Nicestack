@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width">
+		<title id="title"></title>
+	</head>
+	<body>
+		<div id="content">
+
+		</div>
+	</body>
+</html>
+
+<script type="text/javascript">
+	Promise.all([
+		getNamespace('app'),
+		getNamespace('login'),
+		getNamespace('routing'),
+		getNamespace('rendering'),
+		getNamespace('validation'),
+		getNamespace('hashing')
+	]).then(async () => {
+		let content = byID('content');
+		await rendering.instantiate(app, content);
+		routing.restore();
+	});
+
+	window.onpopstate = async (e) => {
+		e.preventDefault();
+		await getNamespace('routing');
+		routing.restore();
+	};
+
+	document.addEventListener('click', (e) => {
+		let path = e.composedPath();
+		for (let i in path) {
+			if (path[i].tagName && path[i].tagName.toLowerCase() == 'a' && path[i].target != '_blank') {
+				e.preventDefault();
+				history.pushState(null, null, path[i].href);
+				routing.restore();
+				break;
+			}
+		}
+	});
+
+	function byID(id) {return document.getElementById(id);}
+
+	async function getProtectedNamespace(name, key) {
+		if (!name) return null;
+		if (!key) return null;
+		return await getNamespace(name, key);
+	}
+
+	async function getNamespace(name, key=null) {
+		if (!window.namespaces) window.namespaces = [];
+		if (!window.awaitingNamespaces) window.awaitingNamespaces = [];
+
+		if (namespaces[name]) return namespaces[name];
+		if (awaitingNamespaces[name]) return await awaitingNamespaces[name];
+		let resolve;
+		awaitingNamespaces[name] = new Promise((res, rej) => {
+			resolve = res;
+		});
+		let data = await callServer('namespace', {name, key});
+		if (!data) console.log(`The namespace ${name} could not be loaded. Make sure it is registered at the intercept backend this main.html came from.`);
+		let namespace = {name};
+		try {
+			await new Function(data).call(namespace);
+		} catch (e) {
+			console.log('error when parsing namespace', name);
+			console.log(data);
+			console.log(e);
+			return;
+		}
+		namespaces[name] = namespace;
+		if (namespace.dependencies) {
+			await Promise.all(namespace.dependencies.map(d => getNamespace(d)));
+		}
+		resolve(namespace);
+		window[name] = namespace;
+		return namespace;
+	}
+
+	function callServer(requestType, info=null) {
+		return new Promise((resolve, reject) => {
+			let xhr = new XMLHttpRequest();
+			xhr.open('POST', '', true);
+			xhr.setRequestHeader('Content-Type', 'application/json');
+			xhr.send(JSON.stringify({requestType, info}));
+			xhr.onreadystatechange = () => {
+				if (xhr.readyState == 4) {
+					if (xhr.status == 200 && xhr.responseText) {
+						let data = null;
+						try {
+							data = JSON.parse(xhr.responseText).data;
+						} catch (e) { console.log(e); }
+						resolve(data);
+					} else {
+						resolve(null);
+					}
+				}
+			};
+		});
+	}
+
+	async function callServerBundled(list) {
+		return await callServer('intercept_bundle', list);
+	}
+
+	function setInterceptCooldown(value) {
+		window.interceptCooldown = value;
+	}
+
+	function intercept(element, event, parameters, callback, type="continuous") {
+		if (!window.interceptCooldown) window.interceptCooldown = 500;
+		if (!element) {
+			console.log('you are trying to register the interception event ' + event + ' with the parameters ' + JSON.stringify(parameters) + " without an html element. A html element is needed to track the event's lifecycle");
+			return;
+		}
+		if (!window.interceptionEvents) window.interceptionEvents = [];
+		interceptionEvents.push({event, element, parameters, callback, hash: null, type});
+
+		if (!window.interceptionRunning) {
+			window.interceptionRunning = true;
+			setTimeout(() => {intercept_recurse();}, 0);
+		} else {
+			if (isVisible(element)) {
+				callServer(event, parameters).then(data => {
+					if (data) callback(data);
+				});
+			}
+		}
+
+		function intercept_recurse() {
+			if (!window.interceptionEvents) return;
+			interceptionEvents = interceptionEvents.filter(e => document.body.contains(e.element));
+			if (interceptionEvents.length == 0) {
+				window.interceptionRunning = false;
+				return;
+			}
+
+			let visibleInterceptionEvents = interceptionEvents.filter(e => e.type == 'update' || isVisible(e.element));
+			callServerBundled(visibleInterceptionEvents.map((e, i) => {
+				if (e.type == 'update') {
+					return {
+						type: 'intercept_update',
+						eventname: e.event,
+						id: e.parameters,
+					};
+				}
+				return {
+					event: e.event,
+					hash: e.hash,
+					parameters: e.parameters
+				};
+			})).then((bundle) => {
+				if (!bundle) return;
+				bundle.forEach((twig, i) => {
+					if (!twig) return;
+					if (twig.hash) visibleInterceptionEvents[i].hash = twig.hash;
+					if (twig.data) {
+						visibleInterceptionEvents[i].callback(twig.data);
+					}
+				});
+				setTimeout(intercept_recurse, interceptCooldown);
+			})
+			.catch((e) => {
+				console.log(e);
+			});
+		}
+	}
+
+	function intercept_update(eventname, id, callback, element) {
+		intercept(element, eventname, id, callback, 'update');
+	}
+
+	function isVisible(element) {
+		if (!document.body.contains(element)) return false;
+
+		bounds = element.getBoundingClientRect();
+		return bounds.bottom >= 0 && bounds.top <= document.documentElement.clientHeight && bounds.right >= 0 && bounds.left <= document.documentElement.clientWidth;
+	}
+
+	function escapeHTML(text) {
+		if (!text || !text.replace) return '';
+		text = text.replace(/\r/g, '');
+		text = text.replace(/&/g, '&amp;');
+		text = text.replace(/</g, '&lt;');
+		text = text.replace(/>/g, '&gt;');
+		text = text.replace(/"/g, '&quot;');
+		text = text.replace(/'/g, '&#39;');
+		text = text.replace(/\n/g, '<br />');
+		text = text.replace(/\t/g, '&#9;');
+		return text;
+	}
+
+	function setTitle(title) {
+		document.getElementById('title').innerText = title;
+	}
+</script>
