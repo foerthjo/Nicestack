@@ -69,8 +69,8 @@ function exposeImage(url, image, imageType) {
 	exposed[url] = {type: 'image/' + imageType, content: fs.readFileSync(image)};
 }
 
-function exposeHTML(url, html, loader=(path) => '' + fs.readFileSync(path)) {
-	exposed[url] = {type: 'text/html charset=utf-8', content: loader(html)};
+function exposeHTML(url, html) {
+	exposed[url] = {type: 'text/html charset=utf-8', content: html};
 }
 
 function exposeText(url, file) {
