@@ -29,15 +29,15 @@
 		}
 	}
 
+	if (namespace.functions) namespace.functions.forEach(fn => {
+		element[fn] = namespace[fn].bind(element);
+	});
+
 	let html = namespace.skeleton || '';
 	if (namespace.render) html = namespace.render.call(element);
 	await this.changeHTML(element, element, html);
 
 	if (namespace.postrender) namespace.postrender.call(element);
-
-	if (namespace.functions) namespace.functions.forEach(fn => {
-		element[fn] = namespace[fn].bind(element);
-	});
 
 	if (namespace.load) await namespace.load.call(element, parameters);
 }
