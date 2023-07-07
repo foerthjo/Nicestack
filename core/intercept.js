@@ -14,6 +14,12 @@ const registeredNamespaces = {};
 const protectedNamespaces = {};
 const protectionKeys = new Set();
 
+const featureFlags = {};
+
+function featureFlag(name, active) {
+	featureFlags[name] = active;
+}
+
 on('namespace', (info) => {
 	if (info.name) {
 		if (info.key) {
@@ -125,7 +131,7 @@ function registerProtectionKey(key) {
 }
 
 function compile(name, namespace, call, namespaceRegister) {
-	let compiled = preCompiler.compile(namespace, {});
+	let compiled = preCompiler.compile(namespace, featureFlags);
 	namespaceRegister[name] = compiled.namespace;
 	compiled.serverFunctions.forEach(fn => {
 		registerServerCode(fn, call);
@@ -380,5 +386,6 @@ exports.writeResponse = writeResponse;
 
 exports.protectedNamespace = protectedNamespace;
 exports.registerProtectionKey = registerProtectionKey;
+exports.featureFlag = featureFlag;
 
 exports.simulateDelay = (d) => delay = d;

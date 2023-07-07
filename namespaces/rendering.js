@@ -102,7 +102,7 @@
 
 		// onsubmit on form submission
 		element.querySelectorAll('form').forEach(form => {
-			form.setAttribute('onsubmit', `event.preventDefault();${form.getAttribute('onsubmit')||''}`);
+			form.setAttribute('onsubmit', `event.preventDefault(); (async () => {${form.getAttribute('onsubmit')||''}})()`);
 		});
 		
 		// recursively instantiate components (this uses changeHTML, careful with recursive components!)
