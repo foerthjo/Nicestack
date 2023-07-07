@@ -24,6 +24,8 @@
 		handler(parameters);
 	}
 	this.currentState = location.pathname.slice(1) + location.hash;
+
+	window.scrollTo(0, 0);
 }
 
 @client reload() {
