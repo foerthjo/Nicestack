@@ -24,6 +24,7 @@
 @client setCookiesAllowed(allowed) {
 	if (this.get('cookiesAllowed') !== allowed) {
 		this.set('cookiesAllowed', allowed);
+		window.cookiesAllowed = allowed;
 		if (allowed === false) {
 			localStorage.clear();
 		} else {
