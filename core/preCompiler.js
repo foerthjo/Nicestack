@@ -225,6 +225,10 @@ function compile(file, featureFlags) {
 	let clientFunctions = getFunctions('@client', file);
 	let serverFunctions = getFunctions('@server', file);
 
+	let globalFunctions = getFunctions('@both', file);
+	clientFunctions = [...clientFunctions, ...globalFunctions];
+	serverFunctions = [...serverFunctions, ...globalFunctions];
+
 	let namespace = '';
 	if (dependencies.length > 0) namespace += `this.dependencies = ${JSON.stringify(dependencies)};\n`;
 	if (skeleton.length > 0) namespace += `this.skeleton = \`${skeleton.join('\n')}\`;\n`;
