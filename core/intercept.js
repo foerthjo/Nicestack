@@ -13,6 +13,7 @@ const sysOps = {};
 const registeredNamespaces = {};
 const protectedNamespaces = {};
 const protectionKeys = new Set();
+const injectedDependencies = {call};
 
 const featureFlags = {};
 
@@ -107,21 +108,21 @@ function registerRoutine(key, callback) {
 	routines[key] = callback;
 }
 
-function namespace(name, path, call) {
+function namespace(name, path) {
 	n = files.load(path);
-	compile(name, n, call, registeredNamespaces);
+	compile(name, n, registeredNamespaces);
 }
 
-function namespaces(path, call) {
+function namespaces(path) {
 	let f = files.loadAll(path);
 	for (key in f) {
-		compile(key, f[key], call, registeredNamespaces);
+		compile(key, f[key], registeredNamespaces);
 	}
 }
 
-function protectedNamespace(name, path, call) {
+function protectedNamespace(name, path) {
 	n = files.load(path);
-	compile(name, n, call, protectedNamespaces);
+	compile(name, n, protectedNamespaces);
 }
 
 function registerProtectionKey(key) {
@@ -130,15 +131,21 @@ function registerProtectionKey(key) {
 	}
 }
 
-function compile(name, namespace, call, namespaceRegister) {
+function injectDependencies(dependencies) {
+	for (key in dependencies) {
+		injectedDependencies[key] = dependencies[key];
+	}
+}
+
+function compile(name, namespace, namespaceRegister) {
 	let compiled = preCompiler.compile(namespace, featureFlags);
 	namespaceRegister[name] = compiled.namespace;
 	compiled.serverFunctions.forEach(fn => {
-		registerServerCode(fn, call);
+		registerServerCode(fn);
 	});
 }
 
-function registerServerCode(fn, call) {
+function registerServerCode(fn) {
 	try {
 		new Function(`this.${fn.name} = ${fn.async ? 'async ' : ''}function(${fn.parameters}){${fn.body}};`).call(sysOps);
 	} catch (e) {
@@ -148,6 +155,10 @@ function registerServerCode(fn, call) {
 	on(fn.name, async (parameters) => {
 		return await call(sysOps[fn.name], parameters);
 	});
+}
+
+function call(fn, parameters) {
+	return fn.call(sysOps, parameters, injectedDependencies);
 }
 
 function update(event, callback) {
@@ -377,6 +388,7 @@ exports.routine = registerRoutine;
 
 exports.namespaces = namespaces;
 exports.namespace = namespace;
+exports.inject = injectDependencies;
 
 exports.update = update;
 exports.send = send;
