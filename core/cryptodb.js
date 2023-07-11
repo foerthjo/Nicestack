@@ -95,6 +95,13 @@ function loadPartitioned(table, idList, id) {
 	return object;
 }
 
+function removePartitioned(table, idList, id) {
+	let path = this.buildPartitionPath(table, idList);
+	id = this.ensureCompression(id);
+
+	files.remove(`${path}${id}.row`);
+}
+
 function loadAll(table) {
 	let all = [];
 	try {
@@ -181,6 +188,7 @@ function createDB(name, shouldEncrypt=true) {
 		load, // v
 		loadPartition, // v
 		loadPartitioned, // v
+		removePartitioned, // v
 		loadAll, // v
 
 		ensureCompression, // v
